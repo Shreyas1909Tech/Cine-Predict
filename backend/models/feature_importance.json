@@ -1,0 +1,202 @@
+[
+  {
+    "feature": "vote_count",
+    "importance": 0.45818713341840156
+  },
+  {
+    "feature": "log_budget",
+    "importance": 0.1436688555827824
+  },
+  {
+    "feature": "budget_per_minute",
+    "importance": 0.09823387706799086
+  },
+  {
+    "feature": "release_year",
+    "importance": 0.06313088381931041
+  },
+  {
+    "feature": "vote_average",
+    "importance": 0.02948203610075263
+  },
+  {
+    "feature": "popularity",
+    "importance": 0.022392284507646194
+  },
+  {
+    "feature": "runtime",
+    "importance": 0.01999632626013426
+  },
+  {
+    "feature": "nlp_avg_word_length",
+    "importance": 0.013456915480968293
+  },
+  {
+    "feature": "nlp_unique_ratio",
+    "importance": 0.011589958374419672
+  },
+  {
+    "feature": "production_companies_count",
+    "importance": 0.011232781091985701
+  },
+  {
+    "feature": "cast_size",
+    "importance": 0.010866050789483913
+  },
+  {
+    "feature": "release_month",
+    "importance": 0.01049947835078616
+  },
+  {
+    "feature": "keywords_count",
+    "importance": 0.010427898494028616
+  },
+  {
+    "feature": "genre_science_fiction",
+    "importance": 0.009968185220310007
+  },
+  {
+    "feature": "release_dayofweek",
+    "importance": 0.008059476980122706
+  },
+  {
+    "feature": "nlp_word_count",
+    "importance": 0.008024350787089189
+  },
+  {
+    "feature": "nlp_sentiment_polarity",
+    "importance": 0.0065111660282399795
+  },
+  {
+    "feature": "nlp_action_score",
+    "importance": 0.006313321671220802
+  },
+  {
+    "feature": "sentiment_score",
+    "importance": 0.005939244350986
+  },
+  {
+    "feature": "nlp_neg_ratio",
+    "importance": 0.005151909655418223
+  },
+  {
+    "feature": "genre_family",
+    "importance": 0.0037474020482475613
+  },
+  {
+    "feature": "nlp_pos_ratio",
+    "importance": 0.003291408781149617
+  },
+  {
+    "feature": "genre_horror",
+    "importance": 0.0030738090505428883
+  },
+  {
+    "feature": "genre_western",
+    "importance": 0.0029633854144890826
+  },
+  {
+    "feature": "genre_crime",
+    "importance": 0.0028922800121365545
+  },
+  {
+    "feature": "genre_count",
+    "importance": 0.0026556755691680306
+  },
+  {
+    "feature": "nlp_romance_score",
+    "importance": 0.00239295729124154
+  },
+  {
+    "feature": "nlp_scifi_score",
+    "importance": 0.00231368789122795
+  },
+  {
+    "feature": "genre_thriller",
+    "importance": 0.0022454773511271964
+  },
+  {
+    "feature": "genre_romance",
+    "importance": 0.002242211761154066
+  },
+  {
+    "feature": "genre_drama",
+    "importance": 0.002060840846277962
+  },
+  {
+    "feature": "genre_comedy",
+    "importance": 0.002050411247662309
+  },
+  {
+    "feature": "nlp_comedy_score",
+    "importance": 0.001949720061109701
+  },
+  {
+    "feature": "genre_war",
+    "importance": 0.001903891503960938
+  },
+  {
+    "feature": "nlp_thriller_score",
+    "importance": 0.0016830141179697724
+  },
+  {
+    "feature": "genre_action",
+    "importance": 0.00147646588505535
+  },
+  {
+    "feature": "genre_fantasy",
+    "importance": 0.0013823476518909296
+  },
+  {
+    "feature": "genre_documentary",
+    "importance": 0.001125250768157388
+  },
+  {
+    "feature": "is_summer",
+    "importance": 0.0008820537309185724
+  },
+  {
+    "feature": "is_weekend_release",
+    "importance": 0.0006932663787159137
+  },
+  {
+    "feature": "genre_mystery",
+    "importance": 0.0006578483993962115
+  },
+  {
+    "feature": "genre_animation",
+    "importance": 0.0006368410813831697
+  },
+  {
+    "feature": "genre_history",
+    "importance": 0.0006198690579438129
+  },
+  {
+    "feature": "genre_foreign",
+    "importance": 0.000563004880609579
+  },
+  {
+    "feature": "is_holiday",
+    "importance": 0.0005079740651488602
+  },
+  {
+    "feature": "genre_music",
+    "importance": 0.0004392088138536215
+  },
+  {
+    "feature": "genre_adventure",
+    "importance": 0.00041756230738401354
+  },
+  {
+    "feature": "genre_tv_movie",
+    "importance": 0.0
+  },
+  {
+    "feature": "cast_popularity",
+    "importance": 0.0
+  },
+  {
+    "feature": "director_popularity",
+    "importance": 0.0
+  }
+]

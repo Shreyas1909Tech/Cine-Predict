@@ -1,0 +1,43 @@
+{
+  "reg_r2": 0.6794002840639002,
+  "reg_rmse": 97830653.84851855,
+  "reg_mae": 52421561.316934064,
+  "reg_best_model": "GradientBoosting",
+  "model_comparison": [
+    {
+      "Model": "GradientBoosting",
+      "R2": 0.6794,
+      "RMSE": 0.9718,
+      "MAE": 0.7197
+    },
+    {
+      "Model": "RandomForest",
+      "R2": 0.6569,
+      "RMSE": 1.0053,
+      "MAE": 0.7371
+    },
+    {
+      "Model": "Ridge",
+      "R2": 0.552,
+      "RMSE": 1.1488,
+      "MAE": 0.8474
+    },
+    {
+      "Model": "XGBoost",
+      "R2": 0.6706,
+      "RMSE": 0.985,
+      "MAE": 0.7151
+    },
+    {
+      "Model": "LightGBM",
+      "R2": 0.6744,
+      "RMSE": 0.9793,
+      "MAE": 0.7122
+    }
+  ],
+  "clf_accuracy": 0.6630265210608425,
+  "clf_precision": 0.6249551837644234,
+  "clf_recall": 0.6630265210608425,
+  "clf_f1": 0.6344183440584126,
+  "clf_best_model": "XGBoost"
+}

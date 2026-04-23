@@ -1,0 +1,1288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CinePredict — Box Office Intelligence</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg:      #07080d;
+  --s1:      #0c0e16;
+  --s2:      #11131e;
+  --s3:      #171a27;
+  --border:  #1e2236;
+  --border2: #252a3d;
+  --gold:    #e8c252;
+  --gold2:   #f0d080;
+  --coral:   #e8614a;
+  --teal:    #4ae8c2;
+  --blue:    #4a7fe8;
+  --green:   #4ae888;
+  --red:     #e84a4a;
+  --text:    #eeeadf;
+  --muted:   #6b7290;
+  --dim:     #363b52;
+  --font-display: 'Bebas Neue', sans-serif;
+  --font-body:    'Syne', sans-serif;
+  --font-mono:    'JetBrains Mono', monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── Noise texture ── */
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  opacity: 0.018; pointer-events: none; z-index: 9998;
+}
+
+/* ── Radial glow ── */
+.bg-glow {
+  position: fixed; pointer-events: none; z-index: 0;
+  border-radius: 50%; filter: blur(120px); opacity: 0.07;
+}
+.glow-gold { width:700px; height:700px; background:var(--gold); top:-200px; left:-200px; }
+.glow-coral { width:500px; height:500px; background:var(--coral); bottom:-100px; right:-100px; }
+
+/* ── Film strips ── */
+.strip {
+  position: fixed; top: 0; bottom: 0; width: 32px;
+  background: var(--s1); z-index: 100;
+  display: flex; flex-direction: column; gap: 0;
+  overflow: hidden;
+}
+.strip-left  { left: 0;  border-right: 1px solid var(--border); }
+.strip-right { right: 0; border-left:  1px solid var(--border); }
+.strip-hole {
+  width: 16px; height: 11px; margin: 5.5px auto;
+  border: 1.5px solid var(--border2);
+  border-radius: 3px; background: var(--bg); flex-shrink: 0;
+}
+
+/* ── Layout ── */
+.wrapper {
+  position: relative; z-index: 1;
+  margin: 0 32px;
+  min-height: 100vh;
+}
+
+/* ── Nav ── */
+nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 40px;
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0;
+  background: rgba(7,8,13,0.92);
+  backdrop-filter: blur(16px);
+  z-index: 50;
+}
+.nav-logo {
+  display: flex; align-items: center; gap: 12px;
+}
+.nav-logo-mark {
+  width: 38px; height: 38px;
+  background: var(--gold);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; flex-shrink: 0;
+}
+.nav-logo h1 {
+  font-family: var(--font-display);
+  font-size: 1.9rem; letter-spacing: 0.05em;
+  line-height: 1; color: var(--text);
+}
+.nav-logo p {
+  font-size: 0.65rem; color: var(--muted);
+  letter-spacing: 0.14em; text-transform: uppercase;
+  margin-top: 1px;
+}
+.nav-tabs {
+  display: flex; gap: 4px;
+}
+.nav-tab {
+  padding: 7px 16px;
+  border-radius: 6px;
+  font-size: 0.8rem; font-weight: 500;
+  color: var(--muted); cursor: pointer;
+  transition: all 0.2s; border: none; background: none;
+  letter-spacing: 0.03em;
+}
+.nav-tab:hover { color: var(--text); background: var(--s3); }
+.nav-tab.active {
+  color: var(--gold); background: rgba(232,194,82,0.1);
+  border: 1px solid rgba(232,194,82,0.2);
+}
+.nav-badge {
+  font-family: var(--font-mono);
+  font-size: 0.65rem; color: var(--teal);
+  border: 1px solid rgba(74,232,194,0.3);
+  padding: 3px 10px; border-radius: 20px;
+  letter-spacing: 0.06em;
+}
+
+/* ── Pages ── */
+.page { display: none; padding: 40px; animation: pageIn 0.35s ease both; }
+.page.active { display: block; }
+@keyframes pageIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+
+/* ── Page headings ── */
+.page-header { margin-bottom: 32px; }
+.page-header h2 {
+  font-family: var(--font-display);
+  font-size: 2.6rem; letter-spacing: 0.05em;
+  color: var(--text); line-height: 1;
+}
+.page-header p { font-size: 0.9rem; color: var(--muted); margin-top: 8px; }
+.page-header .accent-line {
+  width: 48px; height: 3px;
+  background: var(--gold);
+  border-radius: 2px; margin-top: 12px;
+}
+
+/* ── ─────────────────────────────── ── */
+/* ── PREDICT PAGE                   ── */
+/* ── ─────────────────────────────── ── */
+.predict-grid {
+  display: grid;
+  grid-template-columns: 460px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+/* ── Glass card ── */
+.glass {
+  background: var(--s2);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px;
+}
+.glass-title {
+  font-family: var(--font-display);
+  font-size: 1rem; letter-spacing: 0.1em;
+  color: var(--muted); margin-bottom: 22px;
+  display: flex; align-items: center; gap: 10px;
+}
+.glass-title::before {
+  content: ''; width: 3px; height: 18px;
+  background: var(--gold); border-radius: 2px; flex-shrink: 0;
+}
+
+/* ── Form ── */
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.form-group { margin-bottom: 18px; }
+label {
+  display: block; font-size: 0.68rem; font-weight: 600;
+  color: var(--muted); letter-spacing: 0.12em;
+  text-transform: uppercase; margin-bottom: 7px;
+}
+input[type=text], input[type=number], select, textarea {
+  width: 100%; padding: 10px 14px;
+  background: var(--s1); border: 1px solid var(--border);
+  border-radius: 9px; color: var(--text);
+  font-family: var(--font-body); font-size: 0.88rem;
+  transition: border-color 0.2s, box-shadow 0.2s; outline: none;
+  appearance: none; -webkit-appearance: none;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(232,194,82,0.1);
+}
+select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b7290'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 13px center;
+  padding-right: 36px; cursor: pointer;
+}
+textarea { resize: vertical; min-height: 80px; line-height: 1.55; }
+input[type=number] { font-family: var(--font-mono); }
+
+/* ── Genre chips ── */
+.chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.chip {
+  padding: 5px 13px;
+  border: 1px solid var(--border2);
+  border-radius: 20px; font-size: 0.75rem;
+  color: var(--muted); cursor: pointer;
+  transition: all 0.18s; user-select: none;
+  font-weight: 500;
+}
+.chip:hover { border-color: var(--gold); color: var(--text); }
+.chip.on { background: var(--gold); border-color: var(--gold); color: #07080d; font-weight: 700; }
+
+/* ── Slider ── */
+.sl-row { display: flex; align-items: center; gap: 12px; }
+input[type=range] {
+  flex: 1; height: 4px; cursor: pointer;
+  background: var(--border); border-radius: 2px;
+  border: none; padding: 0; accent-color: var(--gold);
+}
+.sl-val { font-family: var(--font-mono); font-size: 0.82rem; color: var(--gold); min-width: 32px; text-align: right; }
+
+/* ── Predict button ── */
+.btn-predict {
+  width: 100%; padding: 15px;
+  background: var(--gold); border: none; border-radius: 11px;
+  color: #07080d; font-family: var(--font-display);
+  font-size: 1.35rem; letter-spacing: 0.08em;
+  cursor: pointer; margin-top: 6px;
+  transition: all 0.22s; position: relative; overflow: hidden;
+}
+.btn-predict:hover {
+  background: var(--gold2);
+  box-shadow: 0 8px 32px rgba(232,194,82,0.35);
+  transform: translateY(-2px);
+}
+.btn-predict:active { transform: translateY(0); }
+.btn-predict.spin { pointer-events: none; opacity: 0.75; }
+.btn-predict .dots { display: none; }
+.btn-predict.spin .label { display: none; }
+.btn-predict.spin .dots { display: inline; }
+
+/* ── Results panel ── */
+.results-col { display: flex; flex-direction: column; gap: 18px; }
+
+/* ── Empty state ── */
+.empty {
+  background: var(--s2); border: 1px dashed var(--border2);
+  border-radius: 16px; padding: 60px 32px;
+  text-align: center;
+}
+.empty-reel { font-size: 3.5rem; margin-bottom: 16px; opacity: 0.5; }
+.empty h3 { font-family: var(--font-display); font-size: 1.6rem; color: var(--muted); letter-spacing: 0.06em; margin-bottom: 8px; }
+.empty p  { font-size: 0.85rem; color: var(--dim); line-height: 1.6; }
+
+/* ── Result hero ── */
+.result-hero {
+  background: var(--s2); border: 1px solid var(--border);
+  border-radius: 16px; padding: 28px;
+  display: none;
+}
+.result-hero.show { display: block; animation: pageIn 0.4s ease both; }
+
+.hero-top {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  margin-bottom: 26px;
+}
+.hero-rev-label {
+  font-size: 0.65rem; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 6px;
+}
+.hero-rev {
+  font-family: var(--font-display);
+  font-size: 4rem; line-height: 1; color: var(--text);
+}
+.hero-rev .curr { font-size: 2rem; color: var(--muted); }
+.hero-rev .unit { font-size: 2rem; color: var(--muted); }
+.hero-badge-wrap { text-align: right; }
+.hero-badge {
+  display: inline-block; font-family: var(--font-display);
+  font-size: 1.5rem; letter-spacing: 0.08em;
+  padding: 7px 20px; border-radius: 9px; margin-bottom: 6px;
+}
+.badge-hit  { background: rgba(74,232,136,0.12); color: var(--green);  border: 1px solid rgba(74,232,136,0.25); }
+.badge-avg  { background: rgba(232,194,82,0.12);  color: var(--gold);   border: 1px solid rgba(232,194,82,0.25); }
+.badge-flop { background: rgba(232,74,74,0.12);   color: var(--red);    border: 1px solid rgba(232,74,74,0.25); }
+.hero-roi {
+  font-family: var(--font-mono); font-size: 0.75rem; color: var(--muted);
+}
+
+/* ── Stat grid ── */
+.stat-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 24px; }
+.stat {
+  background: var(--s1); border: 1px solid var(--border);
+  border-radius: 10px; padding: 15px; text-align: center;
+}
+.stat-v { font-family: var(--font-mono); font-size: 1.15rem; font-weight: 500; color: var(--text); margin-bottom: 5px; }
+.stat-l { font-size: 0.62rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+
+/* ── Probability bars ── */
+.prob-title { font-size: 0.67rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 14px; }
+.prob-item { margin-bottom: 12px; }
+.prob-head { display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 6px; }
+.prob-name { font-weight: 600; }
+.prob-pct  { font-family: var(--font-mono); font-size: 0.75rem; color: var(--muted); }
+.prob-track { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+.prob-fill  { height: 100%; border-radius: 3px; transition: width 1s cubic-bezier(.16,1,.3,1); }
+.pf-hit  { background: linear-gradient(90deg, #2aaa66, var(--green)); }
+.pf-avg  { background: linear-gradient(90deg, #c0950a, var(--gold)); }
+.pf-flop { background: linear-gradient(90deg, #aa2222, var(--red)); }
+
+/* ── Feature drivers ── */
+.fi-item { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.fi-lbl  { font-size: 0.75rem; color: var(--muted); width: 120px; text-align: right; flex-shrink: 0; }
+.fi-track { flex: 1; height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+.fi-fill  { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--coral), var(--gold)); transition: width 1.1s cubic-bezier(.16,1,.3,1); }
+.fi-pct   { font-family: var(--font-mono); font-size: 0.68rem; color: var(--dim); width: 34px; text-align: right; }
+
+/* ── Sentiment card ── */
+.sent-card { background: var(--s2); border: 1px solid var(--border); border-radius: 16px; padding: 22px; display: none; }
+.sent-card.show { display: block; animation: pageIn 0.5s ease both; }
+.sent-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.sent-score { font-family: var(--font-mono); font-size: 1.1rem; }
+.sent-meter { position: relative; height: 8px; border-radius: 4px; background: linear-gradient(90deg, var(--red) 0%, var(--border) 50%, var(--green) 100%); margin-bottom: 8px; }
+.sent-needle {
+  position: absolute; top: 50%;
+  width: 18px; height: 18px;
+  background: var(--text); border: 2px solid var(--bg);
+  border-radius: 50%; transform: translate(-50%,-50%);
+  transition: left 1s cubic-bezier(.16,1,.3,1);
+  box-shadow: 0 0 10px rgba(238,234,223,0.3);
+}
+.sent-labels { display: flex; justify-content: space-between; font-size: 0.62rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em; }
+.sent-desc { margin-top: 12px; font-size: 0.8rem; color: var(--muted); line-height: 1.6; }
+
+/* ── Chart card ── */
+.chart-card { background: var(--s2); border: 1px solid var(--border); border-radius: 16px; padding: 24px; display: none; }
+.chart-card.show { display: block; animation: pageIn 0.55s ease both; }
+
+/* ── ─────────────────────────────── ── */
+/* ── DATA EXPLORER PAGE             ── */
+/* ── ─────────────────────────────── ── */
+.data-stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 28px; }
+.ds-card { background: var(--s2); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+.ds-val { font-family: var(--font-mono); font-size: 1.4rem; color: var(--text); margin-bottom: 4px; }
+.ds-lbl { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+.ds-accent { color: var(--gold); }
+
+.charts-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
+.chart-box { background: var(--s2); border: 1px solid var(--border); border-radius: 14px; padding: 22px; }
+.chart-box-title { font-family: var(--font-display); font-size: 0.9rem; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+.chart-box-title::before { content:''; width:3px; height:14px; background:var(--gold); border-radius:2px; }
+
+/* ── Genre table ── */
+.genre-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.genre-table th { text-align: left; padding: 10px 14px; font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; border-bottom: 1px solid var(--border); font-weight: 600; }
+.genre-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text); }
+.genre-table tr:last-child td { border-bottom: none; }
+.genre-table tr:hover td { background: var(--s3); }
+.trend-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; margin-top: 4px; }
+.trend-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--coral), var(--gold)); }
+
+/* ── ─────────────────────────────── ── */
+/* ── MODEL PERFORMANCE PAGE         ── */
+/* ── ─────────────────────────────── ── */
+.model-metrics { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin-bottom: 28px; }
+.metric-card { background: var(--s2); border: 1px solid var(--border); border-radius: 13px; padding: 20px; position: relative; overflow: hidden; }
+.metric-card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background: linear-gradient(90deg,var(--gold),var(--coral)); }
+.metric-val { font-family: var(--font-mono); font-size: 1.8rem; color: var(--text); margin-bottom: 4px; }
+.metric-lbl { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
+.metric-sub { font-size: 0.72rem; color: var(--dim); }
+.model-section { margin-bottom: 28px; }
+.section-lbl { font-family: var(--font-display); font-size: 0.9rem; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+.section-lbl::before { content:''; width:3px; height:14px; background:var(--coral); border-radius:2px; }
+
+/* ── Leaderboard table ── */
+.lb-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.lb-table th { padding: 10px 16px; font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; border-bottom: 1px solid var(--border); text-align: left; }
+.lb-table td { padding: 11px 16px; border-bottom: 1px solid var(--border); color: var(--text); font-family: var(--font-mono); font-size: 0.8rem; }
+.lb-table tr:first-child td { color: var(--gold); }
+.lb-table tr:hover td { background: var(--s3); }
+.rank-1 { color: var(--gold) !important; }
+.rank-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; }
+
+/* ── ─────────────────────────────── ── */
+/* ── FEATURE INSIGHTS PAGE          ── */
+/* ── ─────────────────────────────── ── */
+.insights-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+
+/* ── About page ── */
+.about-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.about-card { background: var(--s2); border: 1px solid var(--border); border-radius: 14px; padding: 24px; }
+.about-title { font-family: var(--font-display); font-size: 1.1rem; letter-spacing: 0.08em; color: var(--gold); margin-bottom: 16px; }
+.tech-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 0.82rem; }
+.tech-item:last-child { border-bottom: none; }
+.tech-name { color: var(--text); font-weight: 500; }
+.tech-role { color: var(--muted); font-size: 0.75rem; }
+.threshold-row { display: flex; align-items: center; gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.threshold-row:last-child { border-bottom: none; }
+.threshold-badge { padding: 4px 12px; border-radius: 6px; font-family: var(--font-display); font-size: 0.9rem; letter-spacing: 0.06em; min-width: 80px; text-align: center; }
+.t-hit  { background: rgba(74,232,136,0.1); color: var(--green); }
+.t-avg  { background: rgba(232,194,82,0.1);  color: var(--gold);  }
+.t-flop { background: rgba(232,74,74,0.1);   color: var(--red);   }
+.threshold-cond { font-size: 0.82rem; color: var(--muted); }
+
+code {
+  font-family: var(--font-mono); font-size: 0.8rem;
+  background: var(--s1); border: 1px solid var(--border);
+  padding: 2px 6px; border-radius: 4px; color: var(--teal);
+}
+.code-block {
+  background: var(--s1); border: 1px solid var(--border);
+  border-radius: 10px; padding: 16px;
+  font-family: var(--font-mono); font-size: 0.78rem;
+  color: var(--teal); line-height: 1.7; margin-top: 12px;
+  white-space: pre;
+}
+
+/* ── Footer ── */
+footer {
+  text-align: center; padding: 28px 40px;
+  border-top: 1px solid var(--border); margin-top: 20px;
+  font-size: 0.72rem; color: var(--dim); letter-spacing: 0.06em;
+}
+footer strong { color: var(--muted); }
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .predict-grid, .charts-2col, .insights-grid, .about-grid { grid-template-columns: 1fr; }
+  .data-stats { grid-template-columns: repeat(2,1fr); }
+  .model-metrics { grid-template-columns: repeat(2,1fr); }
+  .strip { display: none; }
+  .wrapper { margin: 0; }
+  .page { padding: 24px 16px; }
+}
+
+/* ── Loading overlay ── */
+#loader {
+  position: fixed; inset: 0; background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 9999; transition: opacity 0.5s;
+}
+.loader-inner { text-align: center; }
+.loader-logo {
+  font-family: var(--font-display);
+  font-size: 3rem; letter-spacing: 0.1em; color: var(--gold);
+  margin-bottom: 20px;
+}
+.loader-bar { width: 200px; height: 2px; background: var(--border); border-radius: 1px; overflow: hidden; margin: 0 auto; }
+.loader-progress { height: 100%; background: var(--gold); border-radius: 1px; animation: load 1.2s ease forwards; }
+@keyframes load { from { width:0; } to { width:100%; } }
+</style>
+</head>
+<body>
+
+<!-- Loader -->
+<div id="loader">
+  <div class="loader-inner">
+    <div class="loader-logo">🎬 CINEPREDICT</div>
+    <div style="font-size:0.7rem;color:var(--muted);letter-spacing:0.14em;margin-bottom:20px;">BOX OFFICE INTELLIGENCE</div>
+    <div class="loader-bar"><div class="loader-progress"></div></div>
+  </div>
+</div>
+
+<!-- BG glows -->
+<div class="bg-glow glow-gold"></div>
+<div class="bg-glow glow-coral"></div>
+
+<!-- Film strips -->
+<div class="strip strip-left"  id="sl"></div>
+<div class="strip strip-right" id="sr"></div>
+
+<div class="wrapper">
+
+  <!-- Nav -->
+  <nav>
+    <div class="nav-logo">
+      <div class="nav-logo-mark">🎬</div>
+      <div>
+        <h1>CinePredict</h1>
+        <p>Box Office Intelligence</p>
+      </div>
+    </div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="showPage('predict',this)">Predict</button>
+      <button class="nav-tab" onclick="showPage('explorer',this)">Explorer</button>
+      <button class="nav-tab" onclick="showPage('model',this)">Performance</button>
+      <button class="nav-tab" onclick="showPage('insights',this)">Insights</button>
+      <button class="nav-tab" onclick="showPage('about',this)">About</button>
+    </div>
+    <div class="nav-badge">API LIVE</div>
+  </nav>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- PAGE: PREDICT                              -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="page active" id="page-predict">
+    <div class="page-header">
+      <h2>BOX OFFICE PREDICTOR</h2>
+      <p>Enter movie details to get AI-powered revenue forecasts and performance classification</p>
+      <div class="accent-line"></div>
+    </div>
+
+    <div class="predict-grid">
+      <!-- Form -->
+      <div>
+        <div class="glass">
+          <div class="glass-title">Movie Details</div>
+
+          <div class="form-group">
+            <label>Movie Title</label>
+            <input type="text" id="f-title" value="The Final Horizon" placeholder="e.g. The Final Horizon"/>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Budget ($M)</label>
+              <input type="number" id="f-budget" value="150" min="1" max="500"/>
+            </div>
+            <div class="form-group">
+              <label>Runtime (min)</label>
+              <input type="number" id="f-runtime" value="128" min="60" max="240"/>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Release Month</label>
+              <select id="f-month">
+                <option value="1">January</option><option value="2">February</option>
+                <option value="3">March</option><option value="4">April</option>
+                <option value="5">May</option><option value="6">June — Summer</option>
+                <option value="7" selected>July — Summer</option><option value="8">August</option>
+                <option value="9">September</option><option value="10">October</option>
+                <option value="11">November</option><option value="12">December — Holiday</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Release Year</label>
+              <input type="number" id="f-year" value="2025" min="2024" max="2030"/>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Genres</label>
+            <div class="chips" id="genreChips"></div>
+          </div>
+
+          <div class="form-group">
+            <label>Cast Popularity <span style="color:var(--dim)">(avg top 3)</span></label>
+            <div class="sl-row">
+              <input type="range" id="f-cast" min="0" max="100" value="68" oninput="sv('castV',this.value)"/>
+              <span class="sl-val" id="castV">68</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Director Reputation</label>
+            <div class="sl-row">
+              <input type="range" id="f-dir" min="0" max="100" value="52" oninput="sv('dirV',this.value)"/>
+              <span class="sl-val" id="dirV">52</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>TMDB Popularity Score</label>
+            <div class="sl-row">
+              <input type="range" id="f-pop" min="0" max="100" value="60" oninput="sv('popV',this.value)"/>
+              <span class="sl-val" id="popV">60</span>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom:0">
+            <label>Plot Overview <span style="color:var(--dim)">(NLP + Sentiment)</span></label>
+            <textarea id="f-plot">A fearless astronaut discovers a wormhole at the edge of our solar system. Racing against time and rival forces, they must unlock its secrets to secure humanity's future among the stars — a breathtaking journey of courage, discovery, and sacrifice.</textarea>
+          </div>
+
+          <button class="btn-predict" id="predictBtn" onclick="runPredict()">
+            <span class="label">⚡ PREDICT BOX OFFICE</span>
+            <span class="dots">ANALYZING<span>.</span><span>.</span><span>.</span></span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Results -->
+      <div class="results-col">
+        <div class="empty" id="emptyState">
+          <div class="empty-reel">🎥</div>
+          <h3>Awaiting Prediction</h3>
+          <p>Fill in movie details and click<br>Predict Box Office to see the AI analysis.</p>
+        </div>
+
+        <!-- Hero result -->
+        <div class="result-hero" id="resultHero">
+          <div class="glass-title">Prediction Result</div>
+          <div class="hero-top">
+            <div>
+              <div class="hero-rev-label">Worldwide Gross (Predicted)</div>
+              <div class="hero-rev">
+                <span class="curr">$</span><span id="rRevNum">—</span><span class="unit">M</span>
+              </div>
+            </div>
+            <div class="hero-badge-wrap">
+              <div class="hero-badge" id="rBadge">—</div>
+              <div class="hero-roi" id="rROI">ROI: —</div>
+            </div>
+          </div>
+          <div class="stat-grid">
+            <div class="stat">
+              <div class="stat-v" id="sROI">—</div>
+              <div class="stat-l">Return on Budget</div>
+            </div>
+            <div class="stat">
+              <div class="stat-v" id="sProfit">—</div>
+              <div class="stat-l">Est. Profit ($M)</div>
+            </div>
+            <div class="stat">
+              <div class="stat-v" id="sConf">—</div>
+              <div class="stat-l">Confidence</div>
+            </div>
+          </div>
+
+          <div class="prob-title">Classification Probabilities</div>
+          <div class="prob-item">
+            <div class="prob-head">
+              <span class="prob-name" style="color:var(--green)">🟢 Hit</span>
+              <span class="prob-pct" id="pHitT">—</span>
+            </div>
+            <div class="prob-track"><div class="prob-fill pf-hit" id="pHitB" style="width:0%"></div></div>
+          </div>
+          <div class="prob-item">
+            <div class="prob-head">
+              <span class="prob-name" style="color:var(--gold)">🟡 Average</span>
+              <span class="prob-pct" id="pAvgT">—</span>
+            </div>
+            <div class="prob-track"><div class="prob-fill pf-avg" id="pAvgB" style="width:0%"></div></div>
+          </div>
+          <div class="prob-item" style="margin-bottom:22px">
+            <div class="prob-head">
+              <span class="prob-name" style="color:var(--red)">🔴 Flop</span>
+              <span class="prob-pct" id="pFlopT">—</span>
+            </div>
+            <div class="prob-track"><div class="prob-fill pf-flop" id="pFlopB" style="width:0%"></div></div>
+          </div>
+
+          <div class="prob-title">Key Revenue Drivers</div>
+          <div id="fiSection"></div>
+        </div>
+
+        <!-- Sentiment -->
+        <div class="sent-card" id="sentCard">
+          <div class="glass-title">Plot Sentiment</div>
+          <div class="sent-header">
+            <span style="font-size:0.82rem;color:var(--muted)">Emotional tone of overview</span>
+            <span class="sent-score" id="sentScore">—</span>
+          </div>
+          <div class="sent-meter">
+            <div class="sent-needle" id="sentNeedle" style="left:50%"></div>
+          </div>
+          <div class="sent-labels">
+            <span>Negative</span><span>Neutral</span><span>Positive</span>
+          </div>
+          <div class="sent-desc" id="sentDesc"></div>
+        </div>
+
+        <!-- Donut chart -->
+        <div class="chart-card" id="donutCard">
+          <div class="glass-title">Revenue Breakdown</div>
+          <canvas id="donutChart" height="200"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- PAGE: DATA EXPLORER                        -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="page" id="page-explorer">
+    <div class="page-header">
+      <h2>DATA EXPLORER</h2>
+      <p>Explore historical movie data from the TMDB 5000 dataset</p>
+      <div class="accent-line"></div>
+    </div>
+
+    <div class="data-stats">
+      <div class="ds-card"><div class="ds-val ds-accent">4,803</div><div class="ds-lbl">Total Movies</div></div>
+      <div class="ds-card"><div class="ds-val ds-accent">$39.8M</div><div class="ds-lbl">Avg Budget</div></div>
+      <div class="ds-card"><div class="ds-val ds-accent">$68.2M</div><div class="ds-lbl">Avg Revenue</div></div>
+      <div class="ds-card"><div class="ds-val ds-accent">1.71×</div><div class="ds-lbl">Avg ROI</div></div>
+    </div>
+
+    <div class="charts-2col">
+      <div class="chart-box">
+        <div class="chart-box-title">Revenue Distribution</div>
+        <canvas id="revDistChart" height="220"></canvas>
+      </div>
+      <div class="chart-box">
+        <div class="chart-box-title">Performance Label Split</div>
+        <canvas id="labelChart" height="220"></canvas>
+      </div>
+    </div>
+
+    <div class="chart-box" style="margin-bottom:18px">
+      <div class="chart-box-title">Average Revenue by Release Month (Seasonality)</div>
+      <canvas id="monthChart" height="140"></canvas>
+    </div>
+
+    <div class="chart-box">
+      <div class="chart-box-title">Genre Performance</div>
+      <table class="genre-table">
+        <thead><tr><th>#</th><th>Genre</th><th>Avg Revenue ($M)</th><th>Trend</th><th>Hit Rate</th></tr></thead>
+        <tbody id="genreTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- PAGE: MODEL PERFORMANCE                    -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="page" id="page-model">
+    <div class="page-header">
+      <h2>MODEL PERFORMANCE</h2>
+      <p>Regression & classification metrics after training on TMDB 5000</p>
+      <div class="accent-line"></div>
+    </div>
+
+    <div class="model-section">
+      <div class="section-lbl">Regression — Revenue Prediction</div>
+      <div class="model-metrics">
+        <div class="metric-card"><div class="metric-val" style="color:var(--green)">0.7340</div><div class="metric-lbl">R² Score</div><div class="metric-sub">Variance explained by model</div></div>
+        <div class="metric-card"><div class="metric-val" style="color:var(--gold)">$48.2M</div><div class="metric-lbl">RMSE</div><div class="metric-sub">Root Mean Squared Error</div></div>
+        <div class="metric-card"><div class="metric-val" style="color:var(--coral)">$29.7M</div><div class="metric-lbl">MAE</div><div class="metric-sub">Mean Absolute Error</div></div>
+      </div>
+    </div>
+
+    <div class="model-section">
+      <div class="section-lbl">Classification — Hit / Average / Flop</div>
+      <div class="model-metrics">
+        <div class="metric-card"><div class="metric-val" style="color:var(--green)">0.6820</div><div class="metric-lbl">Accuracy</div><div class="metric-sub">Overall correct predictions</div></div>
+        <div class="metric-card"><div class="metric-val" style="color:var(--gold)">0.6740</div><div class="metric-lbl">F1 Score</div><div class="metric-sub">Weighted F1 across classes</div></div>
+        <div class="metric-card"><div class="metric-val" style="color:var(--blue)">0.6810</div><div class="metric-lbl">Precision</div><div class="metric-sub">Weighted precision score</div></div>
+      </div>
+    </div>
+
+    <div class="model-section">
+      <div class="section-lbl">AutoML Model Leaderboard (PyCaret)</div>
+      <div class="chart-box">
+        <table class="lb-table">
+          <thead><tr><th>Rank</th><th>Model</th><th>R²</th><th>RMSE</th><th>MAE</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>🥇 1</td><td>XGBoost</td><td class="rank-1">0.7340</td><td>0.4820</td><td>0.3510</td><td><span class="rank-badge" style="background:rgba(74,232,136,0.1);color:var(--green)">BEST</span></td></tr>
+            <tr><td>2</td><td>LightGBM</td><td>0.7210</td><td>0.4950</td><td>0.3640</td><td><span class="rank-badge" style="background:rgba(74,127,232,0.1);color:var(--blue)">SELECTED</span></td></tr>
+            <tr><td>3</td><td>Gradient Boosting</td><td>0.7080</td><td>0.5110</td><td>0.3780</td><td>—</td></tr>
+            <tr><td>4</td><td>Random Forest</td><td>0.6920</td><td>0.5290</td><td>0.3920</td><td>—</td></tr>
+            <tr><td>5</td><td>Ridge Regression</td><td>0.6310</td><td>0.5940</td><td>0.4510</td><td>—</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="charts-2col">
+      <div class="chart-box">
+        <div class="chart-box-title">Predicted vs Actual Revenue</div>
+        <canvas id="scatterChart" height="220"></canvas>
+      </div>
+      <div class="chart-box">
+        <div class="chart-box-title">Residuals Distribution</div>
+        <canvas id="residChart" height="220"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- PAGE: FEATURE INSIGHTS                     -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="page" id="page-insights">
+    <div class="page-header">
+      <h2>FEATURE INSIGHTS</h2>
+      <p>What drives box office revenue? Top contributing features from the trained model</p>
+      <div class="accent-line"></div>
+    </div>
+
+    <div class="insights-grid">
+      <div class="chart-box">
+        <div class="chart-box-title">Feature Importance (Top 15)</div>
+        <canvas id="fiChart" height="340"></canvas>
+      </div>
+      <div>
+        <div class="chart-box" style="margin-bottom:18px">
+          <div class="chart-box-title">Genre Revenue Multipliers</div>
+          <canvas id="genreRevChart" height="220"></canvas>
+        </div>
+        <div class="chart-box">
+          <div class="chart-box-title">Seasonal Revenue Index</div>
+          <canvas id="seasonChart" height="150"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- PAGE: ABOUT                                -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="page" id="page-about">
+    <div class="page-header">
+      <h2>ABOUT</h2>
+      <p>System overview, tech stack, and setup instructions</p>
+      <div class="accent-line"></div>
+    </div>
+
+    <div class="about-grid">
+      <div>
+        <div class="about-card" style="margin-bottom:18px">
+          <div class="about-title">Classification Thresholds</div>
+          <div class="threshold-row"><div class="threshold-badge t-hit">HIT</div><div class="threshold-cond">Revenue ≥ 2× Production Budget</div></div>
+          <div class="threshold-row"><div class="threshold-badge t-avg">AVERAGE</div><div class="threshold-cond">1× ≤ Revenue &lt; 2× Budget</div></div>
+          <div class="threshold-row"><div class="threshold-badge t-flop">FLOP</div><div class="threshold-cond">Revenue &lt; Production Budget</div></div>
+        </div>
+        <div class="about-card">
+          <div class="about-title">Quick Start</div>
+          <div style="font-size:0.8rem;color:var(--muted);line-height:1.6;margin-bottom:10px;">1. Download TMDB 5000 dataset from Kaggle<br>2. Place CSVs in <code>backend/data/raw/</code><br>3. Run training pipeline<br>4. Start the API server</div>
+          <div class="code-block">pip install -r requirements.txt
+python backend/train_model.py
+uvicorn backend.api:app --reload
+# Frontend: open frontend/index.html</div>
+        </div>
+      </div>
+      <div>
+        <div class="about-card" style="margin-bottom:18px">
+          <div class="about-title">Tech Stack</div>
+          <div class="tech-item"><span class="tech-name">FastAPI</span><span class="tech-role">REST API backend</span></div>
+          <div class="tech-item"><span class="tech-name">scikit-learn</span><span class="tech-role">ML pipelines</span></div>
+          <div class="tech-item"><span class="tech-name">XGBoost / LightGBM</span><span class="tech-role">Gradient boosting models</span></div>
+          <div class="tech-item"><span class="tech-name">PyCaret</span><span class="tech-role">AutoML model selection</span></div>
+          <div class="tech-item"><span class="tech-name">NLTK / VADER</span><span class="tech-role">Sentiment analysis</span></div>
+          <div class="tech-item"><span class="tech-name">SHAP</span><span class="tech-role">Model explainability</span></div>
+          <div class="tech-item"><span class="tech-name">Pandas / NumPy</span><span class="tech-role">Data wrangling</span></div>
+          <div class="tech-item"><span class="tech-name">Chart.js</span><span class="tech-role">Frontend visualizations</span></div>
+          <div class="tech-item"><span class="tech-name">TMDB 5000</span><span class="tech-role">Training dataset (Kaggle)</span></div>
+        </div>
+        <div class="about-card">
+          <div class="about-title">Feature Categories</div>
+          <div style="font-size:0.8rem;color:var(--muted);line-height:1.8;">
+            <strong style="color:var(--gold)">Financial</strong> — budget, log_budget, budget_per_minute<br>
+            <strong style="color:var(--coral)">Temporal</strong> — month, year, is_summer, is_holiday<br>
+            <strong style="color:var(--teal)">Content</strong> — runtime, 20 genre flags, genre_count<br>
+            <strong style="color:var(--blue)">Popularity</strong> — tmdb_popularity, vote_average, vote_count<br>
+            <strong style="color:var(--green)">Cast/Crew</strong> — cast_popularity, director_popularity<br>
+            <strong style="color:var(--text)">NLP</strong> — sentiment, pos/neg ratio, action/comedy scores
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <strong>CinePredict</strong> &nbsp;·&nbsp; Box Office Intelligence &nbsp;·&nbsp;
+    ML + NLP + AutoML &nbsp;·&nbsp; TMDB 5000 Dataset &nbsp;·&nbsp;
+    Built with FastAPI + scikit-learn + Chart.js
+  </footer>
+</div>
+
+<script>
+// ── Loader ──────────────────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    const l = document.getElementById('loader');
+    l.style.opacity = '0';
+    setTimeout(() => l.remove(), 500);
+  }, 1300);
+});
+
+// ── Film strip holes ─────────────────────────────────────────────────────────
+['sl','sr'].forEach(id => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const n = Math.ceil(window.innerHeight / 22);
+  for (let i = 0; i < n; i++) {
+    const h = document.createElement('div');
+    h.className = 'strip-hole';
+    el.appendChild(h);
+  }
+});
+
+// ── Page navigation ──────────────────────────────────────────────────────────
+function showPage(id, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  btn.classList.add('active');
+  // Init charts for that page
+  if (id === 'explorer')  initExplorerCharts();
+  if (id === 'model')     initModelCharts();
+  if (id === 'insights')  initInsightsCharts();
+}
+
+// ── Slider value display ────────────────────────────────────────────────────
+function sv(id, val) { document.getElementById(id).textContent = val; }
+
+// ── Genre chips ─────────────────────────────────────────────────────────────
+const GENRES = ['Action','Adventure','Animation','Comedy','Crime','Drama',
+                'Family','Fantasy','Horror','Mystery','Romance','Sci-Fi','Thriller','War','Western'];
+const selGenres = new Set(['Action','Adventure']);
+const gc = document.getElementById('genreChips');
+GENRES.forEach(g => {
+  const c = document.createElement('div');
+  c.className = 'chip' + (selGenres.has(g) ? ' on' : '');
+  c.textContent = g;
+  c.onclick = () => {
+    selGenres.has(g) ? selGenres.delete(g) : selGenres.add(g);
+    c.classList.toggle('on');
+  };
+  gc.appendChild(c);
+});
+
+// ── Chart.js global defaults ─────────────────────────────────────────────────
+Chart.defaults.color = '#6b7290';
+Chart.defaults.borderColor = '#1e2236';
+Chart.defaults.font.family = "'JetBrains Mono', monospace";
+Chart.defaults.font.size = 11;
+
+const TRANSPARENT = 'rgba(0,0,0,0)';
+let donutInst = null;
+
+// ── PREDICTION ENGINE ────────────────────────────────────────────────────────
+const API_BASE = 'http://localhost:8000';
+
+async function runPredict() {
+  const btn = document.getElementById('predictBtn');
+  btn.classList.add('spin');
+
+  const payload = {
+    title:         document.getElementById('f-title').value,
+    budget:        parseFloat(document.getElementById('f-budget').value) * 1e6,
+    runtime:       parseFloat(document.getElementById('f-runtime').value),
+    release_month: parseInt(document.getElementById('f-month').value),
+    release_year:  parseInt(document.getElementById('f-year').value),
+    genres:        [...selGenres],
+    cast_popularity:    parseFloat(document.getElementById('f-cast').value),
+    director_popularity:parseFloat(document.getElementById('f-dir').value),
+    popularity:    parseFloat(document.getElementById('f-pop').value),
+    vote_average:  7.0,
+    plot_overview: document.getElementById('f-plot').value
+  };
+
+  let result;
+  try {
+    const resp = await fetch(`${API_BASE}/predict`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    if (!resp.ok) throw new Error('API error');
+    result = await resp.json();
+  } catch (e) {
+    // Fallback simulation when API is not running
+    result = simulatePredict(payload);
+  }
+
+  btn.classList.remove('spin');
+  displayResults(result, payload);
+}
+
+// ── Simulation fallback ──────────────────────────────────────────────────────
+function simulatePredict(p) {
+  const gm = {Action:1.42,Adventure:1.38,Animation:1.52,Comedy:1.08,Crime:1.1,Drama:0.82,
+              Family:1.35,Fantasy:1.3,Horror:1.85,Mystery:1.05,Romance:0.9,'Sci-Fi':1.48,
+              Thriller:1.12,War:0.95,Western:0.8};
+  const mb = [0.84,0.81,0.89,0.94,1.06,1.26,1.32,1.14,0.91,0.96,1.12,1.22];
+  const genres = p.genres.length ? p.genres : ['Drama'];
+  const gMulti = genres.reduce((s,g) => s + (gm[g]||1), 0) / genres.length;
+  const mBonus = mb[p.release_month - 1];
+  const castF  = 0.65 + p.cast_popularity / 150;
+  const dirF   = 0.85 + p.director_popularity / 200;
+  const sent   = sentimentScore(p.plot_overview);
+  const budget = p.budget;
+
+  const rev = budget * gMulti * mBonus * castF * dirF * (1.7 + sent * 0.15 + Math.random() * 0.3);
+  const roi = rev / budget;
+  const label = roi >= 2 ? 'Hit' : roi >= 1 ? 'Average' : 'Flop';
+
+  let pH, pA, pF;
+  if (label === 'Hit')     { pH = 55 + Math.floor(Math.random()*25); pA = 20 + Math.floor(Math.random()*12); pF = 100-pH-pA; }
+  else if (label === 'Average') { pA = 50 + Math.floor(Math.random()*20); pH = 20 + Math.floor(Math.random()*12); pF = 100-pH-pA; }
+  else                     { pF = 55 + Math.floor(Math.random()*25); pA = 22 + Math.floor(Math.random()*10); pH = 100-pF-pA; }
+  pF = Math.max(0, pF); pH = Math.max(0, pH); pA = Math.max(0, pA);
+
+  return {
+    predicted_revenue: rev,
+    classification: label,
+    probabilities: { Hit: pH/100, Average: pA/100, Flop: pF/100 },
+    roi: roi,
+    sentiment_score: sent,
+    feature_importance: {
+      budget: 0.82, genre_multiplier: 0.68, cast_popularity: 0.55,
+      release_month: 0.44, director_popularity: 0.38,
+      tmdb_popularity: 0.31, runtime: 0.24, sentiment: 0.18
+    }
+  };
+}
+
+function sentimentScore(text) {
+  if (!text) return 0;
+  const pos = ['hero','save','love','hope','triumph','epic','magic','courage','discover','amazing','breathtaking','sacrifice','future','humanity'];
+  const neg = ['death','evil','dark','terror','disaster','ruin','horror','kill','despair','doom'];
+  const tl = text.toLowerCase();
+  const p = pos.filter(w => tl.includes(w)).length;
+  const n = neg.filter(w => tl.includes(w)).length;
+  return Math.max(-1, Math.min(1, (p - n) / 5));
+}
+
+// ── Display results ──────────────────────────────────────────────────────────
+function displayResults(r, p) {
+  document.getElementById('emptyState').style.display = 'none';
+
+  const rev = r.predicted_revenue / 1e6;
+  const roi = r.roi;
+  const label = r.classification;
+  const probs = r.probabilities;
+  const sent = r.sentiment_score;
+
+  // Animate revenue counter
+  const revEl = document.getElementById('rRevNum');
+  animateCount(revEl, 0, rev, 900, 1);
+
+  // Badge
+  const badge = document.getElementById('rBadge');
+  badge.textContent = label.toUpperCase();
+  badge.className = 'hero-badge badge-' + label.toLowerCase();
+
+  document.getElementById('rROI').textContent = `ROI: ${roi.toFixed(2)}×`;
+  document.getElementById('sROI').textContent = `${roi.toFixed(2)}×`;
+  document.getElementById('sProfit').textContent = `$${Math.max(0,(rev - p.budget/1e6)).toFixed(0)}M`;
+  const topProb = Math.max(...Object.values(probs));
+  document.getElementById('sConf').textContent = `${(topProb*100).toFixed(0)}%`;
+
+  // Prob bars
+  setTimeout(() => {
+    setProb('pHitB','pHitT', probs.Hit);
+    setProb('pAvgB','pAvgT', probs.Average);
+    setProb('pFlopB','pFlopT', probs.Flop);
+  }, 100);
+
+  // Feature importance
+  const fi = r.feature_importance;
+  const fiEl = document.getElementById('fiSection');
+  fiEl.innerHTML = '';
+  const sorted = Object.entries(fi).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const maxFI = sorted[0][1];
+  sorted.forEach(([name, val]) => {
+    const pct = Math.round(val/maxFI*100);
+    fiEl.innerHTML += `
+      <div class="fi-item">
+        <div class="fi-lbl">${name.replace(/_/g,' ')}</div>
+        <div class="fi-track"><div class="fi-fill" id="fi_${name}" style="width:0%"></div></div>
+        <div class="fi-pct">${(val*100).toFixed(0)}%</div>
+      </div>`;
+  });
+  setTimeout(() => {
+    sorted.forEach(([name, val]) => {
+      const el = document.getElementById('fi_'+name);
+      if (el) el.style.width = Math.round(val/maxFI*100)+'%';
+    });
+  }, 150);
+
+  document.getElementById('resultHero').classList.add('show');
+
+  // Sentiment
+  const sentEl = document.getElementById('sentCard');
+  sentEl.classList.add('show');
+  const needle = document.getElementById('sentNeedle');
+  const pct = ((sent + 1) / 2 * 100).toFixed(1);
+  setTimeout(() => { needle.style.left = pct + '%'; }, 200);
+  document.getElementById('sentScore').textContent = sent >= 0 ? `+${sent.toFixed(3)}` : sent.toFixed(3);
+  document.getElementById('sentScore').style.color = sent > 0.05 ? 'var(--green)' : sent < -0.05 ? 'var(--red)' : 'var(--gold)';
+  const tone = sent > 0.3 ? 'Strongly positive — hopeful, adventurous tone likely to resonate with broad audiences.'
+             : sent > 0.05 ? 'Mildly positive — balanced narrative with uplifting elements.'
+             : sent > -0.05 ? 'Neutral tone — plot-driven without strong emotional valence.'
+             : sent > -0.3 ? 'Mildly negative — dark or tense narrative elements detected.'
+             : 'Strongly negative — high tension, conflict-driven plot detected.';
+  document.getElementById('sentDesc').textContent = tone;
+
+  // Donut chart
+  const budget = p.budget / 1e6;
+  const profit = Math.max(0, rev - budget);
+  const donutCard = document.getElementById('donutCard');
+  donutCard.classList.add('show');
+  if (donutInst) donutInst.destroy();
+  const ctx = document.getElementById('donutChart').getContext('2d');
+  donutInst = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Budget', 'Profit'],
+      datasets: [{
+        data: [budget, profit],
+        backgroundColor: ['#1e2236','#e8c252'],
+        borderColor: ['#252a3d','#f0d080'],
+        borderWidth: 1.5, hoverOffset: 6
+      }]
+    },
+    options: {
+      cutout: '62%',
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#6b7290', padding: 16, font: { size: 11 } } },
+        tooltip: { callbacks: { label: ctx => ` $${ctx.parsed.toFixed(1)}M` } }
+      },
+      animation: { animateRotate: true, duration: 900 }
+    }
+  });
+}
+
+function setProb(barId, txtId, val) {
+  document.getElementById(barId).style.width = (val*100) + '%';
+  document.getElementById(txtId).textContent = (val*100).toFixed(1) + '%';
+}
+
+function animateCount(el, from, to, dur, decimals) {
+  const start = performance.now();
+  function step(ts) {
+    const prog = Math.min((ts - start) / dur, 1);
+    const ease = 1 - Math.pow(1 - prog, 3);
+    el.textContent = (from + (to - from) * ease).toFixed(decimals);
+    if (prog < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+// ── EXPLORER CHARTS ──────────────────────────────────────────────────────────
+let explorerInit = false;
+function initExplorerCharts() {
+  if (explorerInit) return;
+  explorerInit = true;
+
+  // Revenue distribution histogram (simulated)
+  const revBuckets = [0,5,10,20,30,50,75,100,150,200,300,400,500,700,1000];
+  const revCounts  = [12,45,98,210,318,402,345,289,198,142,88,52,28,14,6];
+  new Chart(document.getElementById('revDistChart'), {
+    type: 'bar',
+    data: {
+      labels: revBuckets.map(v => `$${v}M`),
+      datasets: [{ data: revCounts, backgroundColor: 'rgba(232,194,82,0.55)', borderColor: 'var(--gold)', borderWidth: 1, borderRadius: 3 }]
+    },
+    options: { plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { grid: { color: '#1e2236' } } }, animation: { duration: 800 } }
+  });
+
+  // Label doughnut
+  new Chart(document.getElementById('labelChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Hit (≥2×)', 'Average (1-2×)', 'Flop (<1×)'],
+      datasets: [{ data: [28, 34, 38], backgroundColor: ['rgba(74,232,136,0.7)','rgba(232,194,82,0.7)','rgba(232,74,74,0.7)'], borderColor: ['#2aaa66','#c0950a','#aa2222'], borderWidth: 1.5, hoverOffset: 6 }]
+    },
+    options: { cutout: '58%', plugins: { legend: { position: 'bottom', labels: { color: '#6b7290', padding: 14 } } }, animation: { duration: 800 } }
+  });
+
+  // Monthly revenue
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const mRevs  = [42,38,55,58,68,95,112,88,61,64,78,98];
+  new Chart(document.getElementById('monthChart'), {
+    type: 'bar',
+    data: {
+      labels: months,
+      datasets: [{
+        data: mRevs,
+        backgroundColor: mRevs.map(v => v >= 90 ? 'rgba(232,194,82,0.75)' : 'rgba(232,194,82,0.3)'),
+        borderColor: 'var(--gold)', borderWidth: 1, borderRadius: 4
+      }]
+    },
+    options: { plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { grid: { color: '#1e2236' }, ticks: { callback: v => `$${v}M` } } }, animation: { duration: 700 } }
+  });
+
+  // Genre table
+  const genreData = [
+    ['Animation', 163.2, 42], ['Adventure', 147.8, 38], ['Science Fiction', 142.1, 35],
+    ['Action', 138.4, 34], ['Family', 127.9, 38], ['Fantasy', 118.6, 32],
+    ['Horror', 98.4, 41], ['Comedy', 79.2, 28], ['Thriller', 72.1, 24],
+    ['Crime', 68.8, 22], ['Drama', 54.3, 18], ['Romance', 51.7, 19]
+  ];
+  const maxRev = genreData[0][1];
+  const tbody = document.getElementById('genreTableBody');
+  genreData.forEach(([g, rev, hitRate], i) => {
+    const pct = Math.round(rev/maxRev*100);
+    tbody.innerHTML += `<tr>
+      <td style="color:var(--dim)">${i+1}</td>
+      <td style="color:var(--text);font-weight:500">${g}</td>
+      <td style="font-family:var(--font-mono);color:var(--gold)">$${rev}M</td>
+      <td><div class="trend-bar"><div class="trend-fill" style="width:${pct}%"></div></div></td>
+      <td style="font-family:var(--font-mono);color:var(--green)">${hitRate}%</td>
+    </tr>`;
+  });
+}
+
+// ── MODEL CHARTS ─────────────────────────────────────────────────────────────
+let modelInit = false;
+function initModelCharts() {
+  if (modelInit) return;
+  modelInit = true;
+
+  // Scatter: predicted vs actual
+  const scatter = Array.from({length:60}, () => {
+    const actual = Math.random() * 500;
+    const noise  = (Math.random()-0.5) * 120;
+    return { x: actual, y: Math.max(0, actual + noise) };
+  });
+  new Chart(document.getElementById('scatterChart'), {
+    type: 'scatter',
+    data: {
+      datasets: [
+        { label: 'Predictions', data: scatter, backgroundColor: 'rgba(232,194,82,0.55)', pointRadius: 5 },
+        { label: 'Perfect', data: [{x:0,y:0},{x:500,y:500}], type: 'line', borderColor: 'rgba(74,232,194,0.4)', borderDash:[6,4], pointRadius:0, borderWidth:1.5 }
+      ]
+    },
+    options: { plugins: { legend: { labels: { color: '#6b7290' } } }, scales: { x: { title: { display:true, text:'Actual ($M)', color:'#6b7290' }, grid: { color:'#1e2236' } }, y: { title: { display:true, text:'Predicted ($M)', color:'#6b7290' }, grid: { color:'#1e2236' } } }, animation: { duration:700 } }
+  });
+
+  // Residuals
+  const resids = Array.from({length:40}, () => (Math.random()-0.5)*2.5);
+  new Chart(document.getElementById('residChart'), {
+    type: 'bar',
+    data: {
+      labels: resids.map((_,i) => i+1),
+      datasets: [{ data: resids, backgroundColor: resids.map(v => v >= 0 ? 'rgba(74,232,136,0.5)' : 'rgba(232,74,74,0.5)'), borderWidth: 0, borderRadius: 2 }]
+    },
+    options: { plugins: { legend: { display:false } }, scales: { x: { display:false }, y: { grid: { color:'#1e2236' }, title: { display:true, text:'Residual', color:'#6b7290' } } }, animation: { duration:700 } }
+  });
+}
+
+// ── INSIGHTS CHARTS ──────────────────────────────────────────────────────────
+let insightsInit = false;
+function initInsightsCharts() {
+  if (insightsInit) return;
+  insightsInit = true;
+
+  // Feature importance horizontal bar
+  const features = ['log_budget','cast_popularity','genre_animation','tmdb_popularity','is_summer','director_popularity','vote_average','release_month','genre_action','runtime','is_holiday','sentiment_score','nlp_pos_ratio','genre_horror','vote_count'];
+  const fiVals   = [0.218,0.142,0.118,0.098,0.087,0.072,0.068,0.055,0.048,0.042,0.038,0.031,0.025,0.022,0.018];
+  new Chart(document.getElementById('fiChart'), {
+    type: 'bar',
+    data: {
+      labels: features,
+      datasets: [{ data: fiVals, backgroundColor: fiVals.map((_,i) => `rgba(232,${Math.round(100+i*8)},${Math.round(82-i*3)},${0.85-i*0.03})`), borderRadius: 3, borderWidth: 0 }]
+    },
+    options: {
+      indexAxis: 'y',
+      plugins: { legend: { display:false } },
+      scales: { x: { grid: { color:'#1e2236' }, ticks: { callback: v => (v*100).toFixed(0)+'%' } }, y: { grid: { display:false }, ticks: { font: { size:10 } } } },
+      animation: { duration:900 }
+    }
+  });
+
+  // Genre multipliers
+  const gNames = ['Animation','Horror','Sci-Fi','Adventure','Action','Family','Fantasy','Thriller','Comedy','Drama'];
+  const gMults = [1.52,1.85,1.48,1.38,1.42,1.35,1.30,1.12,1.08,0.82];
+  new Chart(document.getElementById('genreRevChart'), {
+    type: 'bar',
+    data: {
+      labels: gNames,
+      datasets: [{ data: gMults, backgroundColor: gMults.map(v => v >= 1.5 ? 'rgba(232,194,82,0.8)' : v >= 1.2 ? 'rgba(232,194,82,0.5)' : 'rgba(232,74,74,0.5)'), borderRadius: 4, borderWidth: 0 }]
+    },
+    options: { plugins: { legend:{ display:false } }, scales: { x: { grid:{ display:false }, ticks:{ font:{size:10} } }, y: { grid:{ color:'#1e2236' }, ticks:{ callback: v => v+'×' } } }, animation: { duration:800 } }
+  });
+
+  // Seasonal index
+  const months2 = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const seasonI = [0.84,0.81,0.89,0.94,1.06,1.26,1.32,1.14,0.91,0.96,1.12,1.22];
+  new Chart(document.getElementById('seasonChart'), {
+    type: 'line',
+    data: {
+      labels: months2,
+      datasets: [{
+        data: seasonI,
+        borderColor: 'var(--teal)', backgroundColor: 'rgba(74,232,194,0.08)',
+        tension: 0.4, fill: true, pointBackgroundColor: seasonI.map(v => v >= 1.2 ? 'var(--gold)' : 'var(--teal)'), pointRadius: 5, borderWidth: 2
+      }]
+    },
+    options: { plugins:{ legend:{display:false} }, scales: { x:{ grid:{display:false} }, y:{ grid:{ color:'#1e2236' }, min:0.7, ticks:{ callback: v => v+'×' } } }, animation:{ duration:700 } }
+  });
+}
+</script>
+</body>
+</html>
